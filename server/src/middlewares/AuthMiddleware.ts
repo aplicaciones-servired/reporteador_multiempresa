@@ -23,6 +23,7 @@ export interface AuthenticatedRequestUser {
   readonly roleName?: string;
   readonly allowedCompanyCodes?: string[];
   readonly isExternalIdentity?: boolean;
+  readonly canManagePermissions?: boolean;
 }
 
 declare global {
@@ -63,6 +64,9 @@ export class AuthMiddleware {
               : {}),
             ...(payload.isExternalIdentity !== undefined
               ? { isExternalIdentity: payload.isExternalIdentity }
+              : {}),
+            ...(payload.canManagePermissions !== undefined
+              ? { canManagePermissions: payload.canManagePermissions }
               : {}),
           };
           next();

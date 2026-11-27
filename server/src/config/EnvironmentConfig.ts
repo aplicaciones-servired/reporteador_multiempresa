@@ -38,6 +38,23 @@ const envSchema = z.object({
   DB_USER: z.string().min(1).default('root'),
   DB_PASSWORD: z.string().default(''),
 
+  LOGIN_DB_HOST: z.string().optional().default(''),
+  LOGIN_DB_PORT: z.preprocess(
+    (v) => (v === '' || v === undefined ? undefined : v),
+    z.coerce.number().int().positive().default(3306),
+  ),
+  LOGIN_DB_NAME: z.string().optional().default('login_unificado'),
+  LOGIN_DB_USER: z.string().optional().default(''),
+  LOGIN_DB_PASSWORD: z.string().optional().default(''),
+  LOGIN_DB_TABLE: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    z
+      .string()
+      .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Nombre de tabla LOGIN_DB_TABLE inválido')
+      .default('login_users'),
+  ),
+  USER_PERMISSIONS_FILE: z.string().min(1).default('./data/user-permissions.json'),
+
   SEED_DEFAULT_ADMIN_PASSWORD: z.string().min(6).default('Admin123*'),
 
   ORACLE_CLIENT_LIB_DIR: z.string().optional().default(''),
@@ -75,6 +92,15 @@ export interface AppDatabaseConfig {
   readonly password: string;
 }
 
+export interface LoginUnificadoDbConfig {
+  readonly host: string;
+  readonly port: number;
+  readonly database: string;
+  readonly username: string;
+  readonly password: string;
+  readonly tableName: string;
+}
+
 export class EnvironmentConfig {
   private static instance: EnvironmentConfig | null = null;
 
@@ -90,7 +116,9 @@ export class EnvironmentConfig {
   public readonly seedDefaultAdminPassword: string;
   public readonly appDbMode: 'local_file' | 'legacy_mysql' | 'sequelize';
   public readonly localDbFile: string;
+  public readonly userPermissionsFile: string;
   public readonly appDb: AppDatabaseConfig;
+  public readonly loginDb: LoginUnificadoDbConfig | null;
   public readonly oracle: {
     readonly clientLibDir: string;
     readonly beneliteHistTable: string;
@@ -122,6 +150,9 @@ export class EnvironmentConfig {
     this.localDbFile = path.isAbsolute(parsed.LOCAL_DB_FILE)
       ? parsed.LOCAL_DB_FILE
       : path.resolve(SERVER_ROOT, parsed.LOCAL_DB_FILE);
+    this.userPermissionsFile = path.isAbsolute(parsed.USER_PERMISSIONS_FILE)
+      ? parsed.USER_PERMISSIONS_FILE
+      : path.resolve(SERVER_ROOT, parsed.USER_PERMISSIONS_FILE);
 
     this.appDb = {
       dialect: parsed.DB_DIALECT,
@@ -131,6 +162,21 @@ export class EnvironmentConfig {
       username: parsed.DB_USER,
       password: parsed.DB_PASSWORD,
     };
+
+    const loginDbHost = parsed.LOGIN_DB_HOST.trim();
+    const loginDbName = parsed.LOGIN_DB_NAME.trim();
+    const loginDbUser = parsed.LOGIN_DB_USER.trim();
+    this.loginDb =
+      loginDbHost && loginDbName && loginDbUser
+        ? {
+            host: loginDbHost,
+            port: parsed.LOGIN_DB_PORT,
+            database: loginDbName,
+            username: loginDbUser,
+            password: parsed.LOGIN_DB_PASSWORD,
+            tableName: parsed.LOGIN_DB_TABLE.trim(),
+          }
+        : null;
 
     this.oracle = {
       clientLibDir: parsed.ORACLE_CLIENT_LIB_DIR.trim(),

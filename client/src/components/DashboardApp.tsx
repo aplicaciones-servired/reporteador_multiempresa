@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiClientError } from '../services/HttpClient';
 import { ServiceContainer } from '../services/ServiceContainer';
 import type {
@@ -10,6 +10,7 @@ import type {
   ReportFilterPayload,
   ReportPreviewResponse,
 } from '../types/api.types';
+import AdminPermissionsPanel from './AdminPermissionsPanel';
 import HeaderBar from './HeaderBar';
 import {
   ArrowRightIcon,
@@ -35,6 +36,8 @@ export default function DashboardApp() {
   const [companies, setCompanies] = useState<CompanyDto[]>([]);
   const [modules, setModules] = useState<CatalogModuleGroup[]>([]);
   const [selectedReport, setSelectedReport] = useState<ReportCatalogItem | null>(null);
+  const [activeView, setActiveView] = useState<'reports' | 'admin'>('reports');
+  const [permissionsDirty, setPermissionsDirty] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [busyAction, setBusyAction] = useState<'preview' | 'export' | null>(null);
@@ -93,7 +96,52 @@ export default function DashboardApp() {
     };
   }, []);
 
+  const refreshSessionAndCatalog = useCallback(async () => {
+    const services = ServiceContainer.getInstance();
+    const [profile, catalog] = await Promise.all([
+      services.auth.getCurrentUser(),
+      services.catalog.getCatalog(),
+    ]);
+    setUser(profile);
+    setCompanies(catalog.companies);
+    setModules(catalog.modules);
+
+    const allReports = catalog.modules.flatMap((group) => group.reports);
+    setSelectedReport((prev) => {
+      if (prev && allReports.some((r) => r.slug === prev.slug)) {
+        return prev;
+      }
+      return allReports[0] ?? null;
+    });
+  }, []);
+
+  const handleSelectView = async (nextView: 'reports' | 'admin') => {
+    if (nextView === 'admin' && !user?.canManagePermissions) {
+      return;
+    }
+    if (activeView === 'admin' && nextView === 'reports' && permissionsDirty) {
+      try {
+        await refreshSessionAndCatalog();
+        setPermissionsDirty(false);
+      } catch (error) {
+        if (error instanceof ApiClientError && error.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+      }
+    }
+    setActiveView(nextView);
+  };
+
   const handleSelectReport = (report: ReportCatalogItem) => {
+    if (activeView === 'admin') {
+      setActiveView('reports');
+      if (permissionsDirty) {
+        void refreshSessionAndCatalog()
+          .then(() => setPermissionsDirty(false))
+          .catch(() => {});
+      }
+    }
     setSelectedReport(report);
     setPreview(null);
     setAlert(null);
@@ -263,102 +311,113 @@ export default function DashboardApp() {
         <HeaderBar
           user={user}
           activeReport={selectedReport}
+          activeView={activeView}
+          onSelectView={(view) => void handleSelectView(view)}
           onToggleMobileMenu={() => setMobileMenuOpen(true)}
           onLogout={() => void handleLogout()}
           loggingOut={loggingOut}
         />
 
         <main className="mx-auto w-full max-w-7xl flex-1 space-y-5 p-4 sm:p-6">
-          {/* Resumen ejecutivo de sesión y permisos */}
-          <section className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
-            <div className="flex items-center gap-3.5 rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-xs">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#15469B] ring-1 ring-blue-100">
-                <LayersIcon className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
-                  Reportes Autorizados
-                </p>
-                <p className="mt-0.5 text-sm font-bold text-slate-900">
-                  <span className="tabular-nums">{totalReports}</span> en{' '}
-                  <span className="tabular-nums">{modules.length}</span>{' '}
-                  {modules.length === 1 ? 'módulo' : 'módulos'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3.5 rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-xs">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
-                <BuildingIcon className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
-                  Empresas Habilitadas
-                </p>
-                <p className="mt-0.5 truncate text-sm font-bold text-slate-900">
-                  {companies.length > 0 ? (
-                    <>
-                      <span className="tabular-nums">{companies.length}</span> ({companyCitySummary})
-                    </>
-                  ) : (
-                    'Ninguna asignada'
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3.5 rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-xs">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700 ring-1 ring-amber-100">
-                <ShieldCheckIcon className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
-                  Perfil Activo
-                </p>
-                <p className="mt-0.5 truncate text-sm font-bold text-slate-900">
-                  {user.roleName}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          {alert && (
-            <StatusAlert
-              variant={alert.variant}
-              message={alert.message}
-              details={alert.details}
-              onDismiss={() => setAlert(null)}
+          {activeView === 'admin' && user.canManagePermissions ? (
+            <AdminPermissionsPanel
+              currentUsername={user.login}
+              onPermissionsChanged={() => setPermissionsDirty(true)}
             />
-          )}
-
-          {selectedReport ? (
-            <>
-              <ReportFilterPanel
-                report={selectedReport}
-                companies={companies}
-                busyAction={busyAction}
-                onPreview={(payload) => void handlePreview(payload)}
-                onExport={(payload) => void handleExport(payload)}
-              />
-              <ReportPreviewTable
-                preview={preview}
-                loading={busyAction === 'preview'}
-              />
-            </>
           ) : (
-            <section className="rounded-2xl border border-slate-200/90 bg-white p-10 text-center shadow-xs">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
-                <ShieldCheckIcon className="h-6 w-6" />
-              </div>
-              <h2 className="mt-4 text-base font-bold text-slate-900">
-                Sin reportes asignados
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Tu perfil (<span className="font-semibold text-slate-700">{user.roleCode}</span>) no
-                tiene reportes habilitados actualmente. Contacta a soporte de aplicaciones si
-                requieres acceso.
-              </p>
-            </section>
+            <>
+              {/* Resumen ejecutivo de sesión y permisos */}
+              <section className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+                <div className="flex items-center gap-3.5 rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-xs">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#15469B] ring-1 ring-blue-100">
+                    <LayersIcon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
+                      Reportes Autorizados
+                    </p>
+                    <p className="mt-0.5 text-sm font-bold text-slate-900">
+                      <span className="tabular-nums">{totalReports}</span> en{' '}
+                      <span className="tabular-nums">{modules.length}</span>{' '}
+                      {modules.length === 1 ? 'módulo' : 'módulos'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3.5 rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-xs">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                    <BuildingIcon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
+                      Empresas Habilitadas
+                    </p>
+                    <p className="mt-0.5 truncate text-sm font-bold text-slate-900">
+                      {companies.length > 0 ? (
+                        <>
+                          <span className="tabular-nums">{companies.length}</span> ({companyCitySummary})
+                        </>
+                      ) : (
+                        'Ninguna asignada'
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3.5 rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-xs">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700 ring-1 ring-amber-100">
+                    <ShieldCheckIcon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
+                      Perfil Activo
+                    </p>
+                    <p className="mt-0.5 truncate text-sm font-bold text-slate-900">
+                      {user.roleName}
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              {alert && (
+                <StatusAlert
+                  variant={alert.variant}
+                  message={alert.message}
+                  details={alert.details}
+                  onDismiss={() => setAlert(null)}
+                />
+              )}
+
+              {selectedReport ? (
+                <>
+                  <ReportFilterPanel
+                    report={selectedReport}
+                    companies={companies}
+                    busyAction={busyAction}
+                    onPreview={(payload) => void handlePreview(payload)}
+                    onExport={(payload) => void handleExport(payload)}
+                  />
+                  <ReportPreviewTable
+                    preview={preview}
+                    loading={busyAction === 'preview'}
+                  />
+                </>
+              ) : (
+                <section className="rounded-2xl border border-slate-200/90 bg-white p-10 text-center shadow-xs">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+                    <ShieldCheckIcon className="h-6 w-6" />
+                  </div>
+                  <h2 className="mt-4 text-base font-bold text-slate-900">
+                    Sin reportes asignados
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Tu perfil (<span className="font-semibold text-slate-700">{user.roleCode}</span>) no
+                    tiene reportes habilitados actualmente. Contacta a soporte de aplicaciones si
+                    requieres acceso.
+                  </p>
+                </section>
+              )}
+            </>
           )}
         </main>
       </div>

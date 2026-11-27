@@ -6,7 +6,6 @@ import {
   CloseIcon,
   FileSpreadsheetIcon,
   FileTextIcon,
-  LayersIcon,
   SearchIcon,
   TableIcon,
   type IconProps,
@@ -98,9 +97,11 @@ export default function Sidebar({
       <div className="border-b border-white/10 px-4 py-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/25 to-emerald-500/20 text-blue-300 ring-1 ring-white/15">
-              <LayersIcon className="h-4.5 w-4.5" />
-            </div>
+            <img
+              src="/img/1055644.png"
+              alt="Reporteador Multiempresa"
+              className="h-9 w-9 shrink-0 rounded-xl bg-white/10 p-1 object-contain ring-1 ring-white/15"
+            />
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-bold tracking-tight text-white">Reporteador</h2>

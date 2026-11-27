@@ -29,6 +29,7 @@ export class CatalogController {
     const catalog = await this.catalogService.getCatalogForRole(
       req.authUser.roleId,
       req.authUser.allowedCompanyCodes,
+      req.authUser.login,
     );
     res.status(200).json(catalog);
   }

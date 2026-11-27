@@ -152,8 +152,13 @@ export default function LoginForm() {
               </div>
 
               <div className="mb-6">
-                <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-[#15469B] uppercase ring-1 ring-blue-200/70">
-                  Reporteador Multiempresa
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-blue-50 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-[#15469B] uppercase ring-1 ring-blue-200/70">
+                  <img
+                    src="/img/1055644.png"
+                    alt=""
+                    className="h-4.5 w-4.5 object-contain"
+                  />
+                  <span>Reporteador Multiempresa</span>
                 </span>
                 <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-900">
                   Bienvenido

@@ -2,6 +2,7 @@ import { EnvironmentConfig } from './config/EnvironmentConfig.js';
 import { LocalFileDatabase } from './database/LocalFileDatabase.js';
 import { OraclePoolManager } from './database/OraclePoolManager.js';
 import { SequelizeDatabase } from './database/SequelizeDatabase.js';
+import { UserPermissionsStore } from './database/UserPermissionsStore.js';
 import { DefaultReportRegistryFactory } from './modules/reports/definitions/index.js';
 import type {
   ICompanyRepository,
@@ -18,6 +19,7 @@ import {
   LocalFileReportRepository,
   LocalFileUserRepository,
 } from './repositories/LocalFileRepositories.js';
+import { LoginUnificadoRepository } from './repositories/LoginUnificadoRepository.js';
 import {
   SequelizeCompanyRepository,
   SequelizeReportRepository,
@@ -30,6 +32,18 @@ async function bootstrap(): Promise<void> {
   const reportRegistry = DefaultReportRegistryFactory.create(config);
   const oraclePools = new OraclePoolManager(config);
   await oraclePools.initialize();
+
+  const userPermissionsStore = new UserPermissionsStore(config.userPermissionsFile);
+  await userPermissionsStore.initialize();
+  console.log(`Almacén de permisos por usuario activo (${userPermissionsStore.getFilePath()})`);
+
+  let loginUnificadoRepository: LoginUnificadoRepository | undefined;
+  if (config.loginDb) {
+    loginUnificadoRepository = new LoginUnificadoRepository(config.loginDb);
+    console.log(
+      `Repositorio login_unificado configurado (${config.loginDb.host}:${config.loginDb.port}/${config.loginDb.database}.${config.loginDb.tableName})`,
+    );
+  }
 
   let userRepository: IUserRepository;
   let companyRepository: ICompanyRepository;
@@ -94,6 +108,8 @@ async function bootstrap(): Promise<void> {
     userRepository,
     companyRepository,
     reportRepository,
+    userPermissionsStore,
+    loginUnificadoRepository,
     allowLegacyPlaintextPasswords,
     getAppDbStatus,
   });
@@ -106,6 +122,9 @@ async function bootstrap(): Promise<void> {
     await server.close();
     await oraclePools.closeAll();
     await closeAppDb();
+    if (loginUnificadoRepository) {
+      await loginUnificadoRepository.close();
+    }
     process.exit(0);
   };
 

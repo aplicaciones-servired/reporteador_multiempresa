@@ -28,6 +28,7 @@ export interface PublicUserProfile {
   readonly roleCode: string;
   readonly roleName: string;
   readonly companies: CompanyDto[];
+  readonly canManagePermissions?: boolean;
 }
 
 export interface ReportCatalogItem {
@@ -96,4 +97,47 @@ export interface ApiErrorPayload {
   readonly message?: string | string[];
   readonly detail?: string;
   readonly msg?: string;
+}
+
+export interface AdminUserPermissionDto {
+  readonly id: string;
+  readonly username: string;
+  readonly fullName: string;
+  readonly document: string;
+  readonly email: string;
+  readonly company: string;
+  readonly process: string;
+  readonly subProcess: string;
+  readonly position: string;
+  readonly state: string;
+  readonly isActive: boolean;
+  readonly isAdminPortalAuthorized: boolean;
+  readonly defaultRoleCode: string;
+  readonly defaultRoleName: string;
+  readonly defaultReportSlugs: string[];
+  readonly defaultCompanyCodes: string[];
+  readonly isCustomized: boolean;
+  readonly effectiveReportSlugs: string[];
+  readonly effectiveCompanyCodes: string[];
+  readonly updatedAt: string | null;
+  readonly updatedBy: string | null;
+}
+
+export interface UserPermissionOverrideDto {
+  readonly username: string;
+  readonly reportSlugs: string[];
+  readonly companyCodes?: string[];
+  readonly updatedAt: string;
+  readonly updatedBy: string;
+}
+
+export interface AdminPermissionsOverviewResponse {
+  readonly users: AdminUserPermissionDto[];
+  readonly reports: ReportCatalogItem[];
+  readonly companies: CompanyDto[];
+}
+
+export interface UpdateUserPermissionsPayload {
+  readonly reportSlugs: string[];
+  readonly companyCodes?: string[];
 }

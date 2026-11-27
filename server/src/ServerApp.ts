@@ -5,10 +5,15 @@ import helmet from 'helmet';
 import type { Server } from 'node:http';
 import type { EnvironmentConfig } from './config/EnvironmentConfig.js';
 import type { IOraclePoolManager, OracleSourceName } from './database/OraclePoolManager.js';
+import {
+  MemoryUserPermissionsStore,
+  type IUserPermissionsStore,
+} from './database/UserPermissionsStore.js';
 import { AuthMiddleware } from './middlewares/AuthMiddleware.js';
 import { ErrorHandlerMiddleware } from './middlewares/ErrorHandlerMiddleware.js';
 import { RateLimiterMiddleware } from './middlewares/RateLimiterMiddleware.js';
 import { RbacMiddleware } from './middlewares/RbacMiddleware.js';
+import { AdminPermissionsController } from './modules/admin/AdminPermissionsController.js';
 import { AuthController } from './modules/auth/AuthController.js';
 import { AuthService } from './modules/auth/AuthService.js';
 import { CatalogController } from './modules/catalog/CatalogController.js';
@@ -17,6 +22,7 @@ import type { ReportRegistry } from './modules/reports/core/ReportRegistry.js';
 import { ExporterFactory } from './modules/reports/exporters/ExporterFactory.js';
 import { ReportController } from './modules/reports/ReportController.js';
 import { ReportExecutionService } from './modules/reports/ReportExecutionService.js';
+import type { ILoginUnificadoRepository } from './repositories/LoginUnificadoRepository.js';
 import type {
   ICompanyRepository,
   IReportRepository,
@@ -30,6 +36,8 @@ export interface ServerDependencies {
   readonly userRepository: IUserRepository;
   readonly companyRepository: ICompanyRepository;
   readonly reportRepository: IReportRepository;
+  readonly userPermissionsStore?: IUserPermissionsStore;
+  readonly loginUnificadoRepository?: ILoginUnificadoRepository;
   readonly allowLegacyPlaintextPasswords?: boolean;
   readonly getAppDbStatus?: () => Promise<'connected' | 'disconnected'>;
   readonly loginRateLimiter?: RateLimiterMiddleware;
@@ -65,6 +73,9 @@ export class ServerApp {
   }
 
   private configureRoutes(): void {
+    const userPermissionsStore =
+      this.deps.userPermissionsStore ?? new MemoryUserPermissionsStore();
+
     const authService = new AuthService(
       this.deps.userRepository,
       this.deps.companyRepository,
@@ -72,12 +83,15 @@ export class ServerApp {
       this.deps.config.jwtExpiresIn,
       Boolean(this.deps.allowLegacyPlaintextPasswords),
       this.deps.config.loginJwtSecret,
+      userPermissionsStore,
+      this.deps.loginUnificadoRepository,
     );
     const authMiddleware = new AuthMiddleware(authService, this.deps.config.authCookieNames);
     const rbacMiddleware = new RbacMiddleware(
       this.deps.reportRegistry,
       this.deps.reportRepository,
       this.deps.companyRepository,
+      userPermissionsStore,
     );
 
     const loginRateLimiter =
@@ -100,8 +114,18 @@ export class ServerApp {
     const catalogService = new CatalogService(
       this.deps.companyRepository,
       this.deps.reportRepository,
+      this.deps.reportRegistry,
+      userPermissionsStore,
     );
     const catalogController = new CatalogController(catalogService, authMiddleware);
+
+    const adminController = new AdminPermissionsController(
+      authMiddleware,
+      this.deps.reportRegistry,
+      userPermissionsStore,
+      this.deps.loginUnificadoRepository,
+      this.deps.reportRepository,
+    );
 
     const exporterFactory = new ExporterFactory();
     const reportService = new ReportExecutionService(
@@ -135,6 +159,7 @@ export class ServerApp {
     this.expressApp.use('/api/auth', authController.router);
     this.expressApp.use('/api/catalog', catalogController.router);
     this.expressApp.use('/api/reports', reportController.router);
+    this.expressApp.use('/api/admin', adminController.router);
   }
 
   private configureErrorHandling(): void {

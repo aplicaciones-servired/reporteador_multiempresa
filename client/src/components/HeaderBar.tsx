@@ -1,9 +1,18 @@
 import type { PublicUserProfile, ReportCatalogItem } from '../types/api.types';
-import { ChevronRightIcon, LogOutIcon, MenuIcon, SpinnerIcon } from './Icons';
+import {
+  ChevronRightIcon,
+  LayersIcon,
+  LogOutIcon,
+  MenuIcon,
+  SlidersIcon,
+  SpinnerIcon,
+} from './Icons';
 
 interface HeaderBarProps {
   readonly user: PublicUserProfile;
   readonly activeReport?: ReportCatalogItem | null;
+  readonly activeView?: 'reports' | 'admin';
+  readonly onSelectView?: (view: 'reports' | 'admin') => void;
   readonly onToggleMobileMenu: () => void;
   readonly onLogout: () => void;
   readonly loggingOut: boolean;
@@ -35,6 +44,8 @@ function getCompanyDotClass(name: string): string {
 export default function HeaderBar({
   user,
   activeReport,
+  activeView = 'reports',
+  onSelectView,
   onToggleMobileMenu,
   onLogout,
   loggingOut,
@@ -68,20 +79,55 @@ export default function HeaderBar({
           />
         </div>
 
-        {activeReport && (
+        {activeView === 'admin' ? (
           <div className="hidden min-w-0 items-center gap-1.5 border-l border-slate-200 pl-3 text-xs xl:flex">
-            <span className="shrink-0 font-medium text-slate-400">
-              {activeReport.module}
-            </span>
+            <span className="shrink-0 font-medium text-slate-400">Administración</span>
             <ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-slate-300" />
-            <span className="truncate font-semibold text-slate-700">
-              {activeReport.name}
+            <span className="truncate font-semibold text-[#15469B]">
+              Permisos de Usuarios
             </span>
           </div>
+        ) : (
+          activeReport && (
+            <div className="hidden min-w-0 items-center gap-1.5 border-l border-slate-200 pl-3 text-xs xl:flex">
+              <span className="shrink-0 font-medium text-slate-400">
+                {activeReport.module}
+              </span>
+              <ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-slate-300" />
+              <span className="truncate font-semibold text-slate-700">
+                {activeReport.name}
+              </span>
+            </div>
+          )
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2.5 sm:gap-3">
+        {user.canManagePermissions && onSelectView && (
+          <button
+            type="button"
+            onClick={() => onSelectView(activeView === 'admin' ? 'reports' : 'admin')}
+            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold shadow-xs transition ${
+              activeView === 'admin'
+                ? 'border-slate-800 bg-slate-900 text-white hover:bg-slate-800'
+                : 'border-blue-200 bg-blue-50/80 text-[#15469B] hover:border-blue-300 hover:bg-blue-100/80'
+            }`}
+          >
+            {activeView === 'admin' ? (
+              <>
+                <LayersIcon className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Volver a Reportes</span>
+                <span className="sm:hidden">Reportes</span>
+              </>
+            ) : (
+              <>
+                <SlidersIcon className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Administrar permisos</span>
+                <span className="sm:hidden">Admin</span>
+              </>
+            )}
+          </button>
+        )}
         <div className="hidden flex-wrap items-center gap-1.5 md:flex">
           {user.companies.map((c) => (
             <span

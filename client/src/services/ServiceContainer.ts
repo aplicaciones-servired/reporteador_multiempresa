@@ -1,3 +1,4 @@
+import { AdminApiService } from './AdminApiService';
 import { AuthApiService } from './AuthApiService';
 import { CatalogApiService } from './CatalogApiService';
 import { HttpClient } from './HttpClient';
@@ -11,6 +12,7 @@ export class ServiceContainer {
   public readonly auth: AuthApiService;
   public readonly catalog: CatalogApiService;
   public readonly reports: ReportApiService;
+  public readonly admin: AdminApiService;
 
   private constructor() {
     const rawUrl = import.meta.env.PUBLIC_API_URL?.trim() || 'http://localhost:4000/api';
@@ -22,6 +24,7 @@ export class ServiceContainer {
     this.auth = new AuthApiService(this.http, this.loginHttp);
     this.catalog = new CatalogApiService(this.http);
     this.reports = new ReportApiService(this.http);
+    this.admin = new AdminApiService(this.http);
   }
 
   public static getInstance(): ServiceContainer {

@@ -59,6 +59,24 @@ export class HttpClient {
     }
   }
 
+  public async put<T>(url: string, body: unknown): Promise<T> {
+    try {
+      const response = await this.client.put<T>(url, body);
+      return response.data;
+    } catch (error) {
+      throw await this.normalizeError(error);
+    }
+  }
+
+  public async delete<T>(url: string): Promise<T> {
+    try {
+      const response = await this.client.delete<T>(url);
+      return response.data;
+    } catch (error) {
+      throw await this.normalizeError(error);
+    }
+  }
+
   public async postBlob(url: string, body: unknown): Promise<BlobDownloadResult> {
     try {
       const response = await this.client.post<Blob>(url, body, {

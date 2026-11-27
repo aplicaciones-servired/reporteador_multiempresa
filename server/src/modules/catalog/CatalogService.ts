@@ -1,5 +1,8 @@
-import type { CompanyContext, ReportMetadata } from '../reports/core/ReportTypes.js';
+import type { IUserPermissionsStore } from '../../database/UserPermissionsStore.js';
 import type { ICompanyRepository, IReportRepository } from '../../repositories/contracts.js';
+import { ALL_DEFAULT_COMPANIES } from '../auth/AuthService.js';
+import type { ReportRegistry } from '../reports/core/ReportRegistry.js';
+import type { CompanyContext, ReportMetadata } from '../reports/core/ReportTypes.js';
 
 export interface CatalogModuleGroup {
   readonly module: string;
@@ -16,20 +19,50 @@ export class CatalogService {
   constructor(
     private readonly companyRepository: ICompanyRepository,
     private readonly reportRepository: IReportRepository,
+    private readonly reportRegistry?: ReportRegistry,
+    private readonly userPermissionsStore?: IUserPermissionsStore,
   ) {}
 
   public async getCatalogForRole(
     roleId: number,
     allowedCompanyCodes?: readonly string[],
+    login?: string,
   ): Promise<UserCatalogResponse> {
-    const [rawCompanies, reports] = await Promise.all([
-      this.companyRepository.findByRoleId(roleId),
-      this.reportRepository.findAuthorizedReportsByRoleId(roleId),
-    ]);
-    const allowedSet = allowedCompanyCodes ? new Set(allowedCompanyCodes) : null;
-    const companies = allowedSet
-      ? rawCompanies.filter((company) => allowedSet.has(company.code))
-      : rawCompanies;
+    const override = login ? this.userPermissionsStore?.getByUsername(login) ?? null : null;
+
+    let companies: CompanyContext[];
+    let reports: ReportMetadata[];
+
+    if (override && this.reportRegistry) {
+      const allowedSlugSet = new Set(override.reportSlugs);
+      reports = this.reportRegistry
+        .getAllMetadata()
+        .filter((report) => allowedSlugSet.has(report.slug));
+
+      if (override.companyCodes && override.companyCodes.length > 0) {
+        const overrideCompanySet = new Set(override.companyCodes);
+        companies = ALL_DEFAULT_COMPANIES.filter((company) =>
+          overrideCompanySet.has(company.code),
+        );
+      } else if (allowedCompanyCodes && allowedCompanyCodes.length > 0) {
+        const allowedCompanySet = new Set(allowedCompanyCodes);
+        companies = ALL_DEFAULT_COMPANIES.filter((company) =>
+          allowedCompanySet.has(company.code),
+        );
+      } else {
+        companies = await this.companyRepository.findByRoleId(roleId);
+      }
+    } else {
+      const [rawCompanies, roleReports] = await Promise.all([
+        this.companyRepository.findByRoleId(roleId),
+        this.reportRepository.findAuthorizedReportsByRoleId(roleId),
+      ]);
+      const allowedSet = allowedCompanyCodes ? new Set(allowedCompanyCodes) : null;
+      companies = allowedSet
+        ? rawCompanies.filter((company) => allowedSet.has(company.code))
+        : rawCompanies;
+      reports = roleReports;
+    }
 
     const grouped = new Map<string, ReportMetadata[]>();
     for (const report of reports) {

@@ -15,8 +15,13 @@ import type {
   OracleBinds,
   OracleSourceName,
 } from '../src/database/OraclePoolManager.js';
+import { UserPermissionsStore } from '../src/database/UserPermissionsStore.js';
 import { RateLimiterMiddleware } from '../src/middlewares/RateLimiterMiddleware.js';
-import { AuthService } from '../src/modules/auth/AuthService.js';
+import { AuthService, isAdminPortalAuthorized } from '../src/modules/auth/AuthService.js';
+import type {
+  ILoginUnificadoRepository,
+  LoginUnificadoUserDto,
+} from '../src/repositories/LoginUnificadoRepository.js';
 import type { CompanyContext } from '../src/modules/reports/core/ReportTypes.js';
 import { DefaultReportRegistryFactory } from '../src/modules/reports/definitions/index.js';
 import { ExcelReportExporter } from '../src/modules/reports/exporters/ExcelReportExporter.js';
@@ -1330,6 +1335,310 @@ test('ServerApp autentica cookie AuthTokenGaneCompany de login_unificado con map
     );
   } finally {
     await app.close();
+  }
+});
+
+test('isAdminPortalAuthorized restringe el panel Admin a Desarrollo Informático o Director de Tecnología', () => {
+  assert.equal(isAdminPortalAuthorized({ process: 'Desarrollo Informático' }), true);
+  assert.equal(isAdminPortalAuthorized({ process: 'desarrollo_informatico' }), true);
+  assert.equal(
+    isAdminPortalAuthorized({ process: 'Tecnologia', position: 'Director de Tecnología' }),
+    true,
+  );
+  assert.equal(
+    isAdminPortalAuthorized({ process: 'Financiero', cargo: 'director_tecnologia' }),
+    true,
+  );
+  assert.equal(
+    isAdminPortalAuthorized({ process: 'Financiero', subProcess: 'coordinador_soporte' }),
+    false,
+  );
+  assert.equal(
+    isAdminPortalAuthorized({ process: 'Comercial', position: 'Coordinador Comercial' }),
+    false,
+  );
+  assert.equal(
+    isAdminPortalAuthorized({ process: 'Contabilidad', subProcess: 'Auxiliar Contable' }),
+    false,
+  );
+});
+
+test('UserPermissionsStore persiste permisos por usuario en disco y permite restaurarlos', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'rm-perms-'));
+  const storeFile = path.join(tempDir, 'user-permissions.json');
+
+  try {
+    const store1 = new UserPermissionsStore(storeFile);
+    await store1.initialize();
+    assert.equal(store1.getByUsername('cp1001060235'), null);
+
+    await store1.upsert({
+      username: 'CP1001060235',
+      reportSlugs: ['recaudos', 'premios-pagados', 'recaudos'],
+      companyCodes: ['39627'],
+      updatedBy: 'dir_tecnologia',
+    });
+
+    const store2 = new UserPermissionsStore(storeFile);
+    await store2.initialize();
+    const loaded = store2.getByUsername('cp1001060235');
+    assert.ok(loaded);
+    assert.equal(loaded.username, 'CP1001060235');
+    assert.deepEqual(loaded.reportSlugs, ['recaudos', 'premios-pagados']);
+    assert.deepEqual(loaded.companyCodes, ['39627']);
+
+    const removed = await store2.deleteByUsername('CP1001060235');
+    assert.equal(removed, true);
+    assert.equal(store2.getByUsername('CP1001060235'), null);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('ServerApp /api/admin/permissions restringe acceso y aplica overrides por usuario en catálogo y RBAC', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'rm-admin-e2e-'));
+  const storeFile = path.join(tempDir, 'user-permissions.json');
+  const jwtSecret = 'test-jwt-secret-key-at-least-32-chars';
+  const loginSecret = 'external-login-unificado-secret-32ch';
+  const config = EnvironmentConfig.fromEnv({
+    NODE_ENV: 'test',
+    JWT_SECRET: jwtSecret,
+    LOGIN_JWT_SECRET: loginSecret,
+  });
+  const registry = DefaultReportRegistryFactory.create(config);
+  const oraclePools = new MockOraclePoolManager();
+  const permissionsStore = new UserPermissionsStore(storeFile);
+  await permissionsStore.initialize();
+
+  const loginUsers: LoginUnificadoUserDto[] = [
+    {
+      id: 'u-1',
+      username: 'DEV_ADMIN',
+      fullName: 'Laura Desarrollo',
+      document: '100200300',
+      email: 'dev@empresa.com',
+      company: 'MultiredYServired',
+      process: 'Desarrollo Informático',
+      subProcess: 'ingeniero_desarrollo',
+      position: 'Ingeniero de Desarrollo',
+      state: 'Activo',
+      isActive: true,
+    },
+    {
+      id: 'u-2',
+      username: 'DIR_TECH',
+      fullName: 'Carlos Director',
+      document: '100200301',
+      email: 'dir@empresa.com',
+      company: 'MultiredYServired',
+      process: 'Gerencia',
+      subProcess: 'tecnologia',
+      position: 'Director de Tecnología',
+      state: 'Activo',
+      isActive: true,
+    },
+    {
+      id: 'u-3',
+      username: 'CP1001060235',
+      fullName: 'Cebastian Ponton',
+      document: '1001060235',
+      email: 'aplicaciones@gruposervired.com.co',
+      company: 'MultiredYServired',
+      process: 'Financiero',
+      subProcess: 'coordinador_soporte',
+      position: 'coordinador_soporte',
+      state: 'Activo',
+      isActive: true,
+    },
+  ];
+
+  const loginRepo: ILoginUnificadoRepository = {
+    async listUsers(search) {
+      if (!search) return loginUsers;
+      const q = search.toLowerCase();
+      return loginUsers.filter(
+        (u) => u.username.toLowerCase().includes(q) || u.fullName.toLowerCase().includes(q),
+      );
+    },
+    async findByUsername(username) {
+      return (
+        loginUsers.find((u) => u.username.toLowerCase() === username.toLowerCase()) ?? null
+      );
+    },
+    async close() {},
+  };
+
+  const userRepo: IUserRepository = {
+    async findByLogin() {
+      return null;
+    },
+    async findById() {
+      return null;
+    },
+    async updateLastLogin() {},
+  };
+  const companyRepo = new StaticCompanyRepository();
+  const reportRepo = new StaticReportRepository(registry.getAllMetadata());
+
+  const app = new ServerApp({
+    config,
+    oraclePools,
+    reportRegistry: registry,
+    userRepository: userRepo,
+    companyRepository: companyRepo,
+    reportRepository: reportRepo,
+    userPermissionsStore: permissionsStore,
+    loginUnificadoRepository: loginRepo,
+    getAppDbStatus: async () => 'connected',
+  });
+
+  const port = await app.listen(0);
+  const baseUrl = `http://127.0.0.1:${port}/api`;
+
+  try {
+    const devToken = jwt.sign(
+      {
+        username: 'DEV_ADMIN',
+        names: 'Laura',
+        lastnames: 'Desarrollo',
+        company: 'MultiredYServired',
+        process: 'Desarrollo Informático',
+        sub_process: 'ingeniero_desarrollo',
+        state: 'Activo',
+      },
+      loginSecret,
+      { algorithm: 'HS256', expiresIn: '1h' },
+    );
+
+    const dirToken = jwt.sign(
+      {
+        username: 'DIR_TECH',
+        names: 'Carlos',
+        lastnames: 'Director',
+        company: 'MultiredYServired',
+        process: 'Gerencia',
+        sub_process: 'tecnologia',
+        state: 'Activo',
+      },
+      loginSecret,
+      { algorithm: 'HS256', expiresIn: '1h' },
+    );
+
+    const soporteToken = jwt.sign(
+      {
+        username: 'CP1001060235',
+        names: 'Cebastian',
+        lastnames: 'Ponton',
+        company: 'MultiredYServired',
+        process: 'Financiero',
+        sub_process: 'coordinador_soporte',
+        state: 'Activo',
+      },
+      loginSecret,
+      { algorithm: 'HS256', expiresIn: '1h' },
+    );
+
+    // 1. Usuario Financiero/coordinador_soporte NO ve admin (canManagePermissions: false) -> 403 en /api/admin/permissions
+    const soporteMeRes = await fetch(`${baseUrl}/auth/me`, {
+      headers: { Cookie: `AuthTokenGaneCompany=${soporteToken}` },
+    });
+    assert.equal(soporteMeRes.status, 200);
+    const soporteMeJson = (await soporteMeRes.json()) as {
+      user: { canManagePermissions: boolean };
+    };
+    assert.equal(soporteMeJson.user.canManagePermissions, false);
+
+    const soporteAdminRes = await fetch(`${baseUrl}/admin/permissions`, {
+      headers: { Cookie: `AuthTokenGaneCompany=${soporteToken}` },
+    });
+    assert.equal(soporteAdminRes.status, 403);
+
+    // 2. Usuario de Desarrollo Informático y Director de Tecnología SÍ tienen canManagePermissions: true
+    for (const adminToken of [devToken, dirToken]) {
+      const meRes = await fetch(`${baseUrl}/auth/me`, {
+        headers: { Cookie: `AuthTokenGaneCompany=${adminToken}` },
+      });
+      assert.equal(meRes.status, 200);
+      const meJson = (await meRes.json()) as {
+        user: { canManagePermissions: boolean };
+      };
+      assert.equal(meJson.user.canManagePermissions, true);
+    }
+
+    const listRes = await fetch(`${baseUrl}/admin/permissions`, {
+      headers: { Cookie: `AuthTokenGaneCompany=${dirToken}` },
+    });
+    assert.equal(listRes.status, 200);
+    const listJson = (await listRes.json()) as {
+      users: Array<{ username: string; isCustomized: boolean }>;
+      reports: Array<{ slug: string }>;
+    };
+    assert.equal(listJson.users.length, 3);
+    assert.equal(listJson.reports.length, 28);
+
+    // 3. Asignar override de reportes y empresa a CP1001060235
+    const putRes = await fetch(`${baseUrl}/admin/permissions/CP1001060235`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: `AuthTokenGaneCompany=${devToken}`,
+      },
+      body: JSON.stringify({
+        reportSlugs: ['recaudos'],
+        companyCodes: ['39627'],
+      }),
+    });
+    assert.equal(putRes.status, 200);
+
+    // 4. El usuario personalizado ahora solo ve 1 reporte y 1 empresa en /api/catalog y RBAC
+    const customCatRes = await fetch(`${baseUrl}/catalog`, {
+      headers: { Cookie: `AuthTokenGaneCompany=${soporteToken}` },
+    });
+    assert.equal(customCatRes.status, 200);
+    const customCatJson = (await customCatRes.json()) as {
+      companies: CompanyContext[];
+      totalReports: number;
+    };
+    assert.equal(customCatJson.totalReports, 1);
+    assert.equal(customCatJson.companies.length, 1);
+    assert.equal(customCatJson.companies[0].code, '39627');
+
+    const allowedPreview = await fetch(`${baseUrl}/reports/recaudos/preview`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: `AuthTokenGaneCompany=${soporteToken}`,
+      },
+      body: JSON.stringify({ empresa: '39627', fecha1: '2026-11-01', fecha2: '2026-11-10' }),
+    });
+    assert.equal(allowedPreview.status, 200);
+
+    const blockedReportPreview = await fetch(`${baseUrl}/reports/premios-pagados/preview`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: `AuthTokenGaneCompany=${soporteToken}`,
+      },
+      body: JSON.stringify({ empresa: '39627', fecha1: '2026-11-01', fecha2: '2026-11-10' }),
+    });
+    assert.equal(blockedReportPreview.status, 403);
+
+    // 5. Restaurar por defecto devuelve los 28 reportes al usuario
+    const delRes = await fetch(`${baseUrl}/admin/permissions/CP1001060235`, {
+      method: 'DELETE',
+      headers: { Cookie: `AuthTokenGaneCompany=${dirToken}` },
+    });
+    assert.equal(delRes.status, 200);
+
+    const restoredCatRes = await fetch(`${baseUrl}/catalog`, {
+      headers: { Cookie: `AuthTokenGaneCompany=${soporteToken}` },
+    });
+    assert.equal(restoredCatRes.status, 200);
+    const restoredCatJson = (await restoredCatRes.json()) as { totalReports: number };
+    assert.equal(restoredCatJson.totalReports, 28);
+  } finally {
+    await app.close();
+    await rm(tempDir, { recursive: true, force: true });
   }
 });
 
