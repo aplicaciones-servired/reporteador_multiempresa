@@ -62,8 +62,11 @@ services:
     depends_on:
       reporteador-server:
         condition: service_healthy
-    ports:
-      - "${WEB_PORT:-8080}:8080"
+    expose:
+      - "8080"
+    # Descomentar solo para acceso local directo sin Nginx Proxy Manager:
+    # ports:
+    #   - "${WEB_PORT:-8080}:8080"
     read_only: true
     tmpfs:
       - /tmp

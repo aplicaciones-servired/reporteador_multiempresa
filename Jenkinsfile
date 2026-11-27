@@ -293,24 +293,23 @@ EOF
             export PUBLIC_API_URL="${PUBLIC_API_URL_VALUE:-/api}"
             export PUBLIC_LOGIN_API_URL="${PUBLIC_LOGIN_API_URL_VALUE:-/apilogin}"
 
-            WEB_PORT_VALUE=$(grep -E '^[[:space:]]*WEB_PORT=' .env | tail -n 1 | cut -d '=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/^"//;s/"$//' | sed "s/^'//;s/'$//" || true)
-            WEB_PORT_VALUE=${WEB_PORT_VALUE:-8080}
-
             docker compose up -d --remove-orphans
 
             ATTEMPTS=0
-            until curl -fsS "http://127.0.0.1:${WEB_PORT_VALUE}/healthz" >/dev/null && \
-                  curl -fsS "http://127.0.0.1:${WEB_PORT_VALUE}/api/health" >/dev/null; do
+            until docker exec reporteador-web wget -qO- "http://127.0.0.1:8080/healthz" >/dev/null 2>&1 && \
+                  docker exec reporteador-web wget -qO- "http://127.0.0.1:8080/api/health" >/dev/null 2>&1; do
               ATTEMPTS=$((ATTEMPTS + 1))
               if [ "$ATTEMPTS" -ge 15 ]; then
                 echo "ERROR: El stack no respondió saludable dentro del tiempo esperado."
                 docker compose ps
+                docker logs --tail 30 reporteador-web || true
+                docker logs --tail 30 reporteador-server || true
                 exit 1
               fi
               sleep 2
             done
 
-            echo "Despliegue completado y verificado en http://127.0.0.1:${WEB_PORT_VALUE}"
+            echo "Despliegue completado y verificado en red red-gane-int (http://reporteador-web:8080)"
           '''
         }
       }
