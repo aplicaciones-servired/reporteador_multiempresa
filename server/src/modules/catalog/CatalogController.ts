@@ -26,7 +26,10 @@ export class CatalogController {
     if (!req.authUser) {
       throw new UnauthorizedError();
     }
-    const catalog = await this.catalogService.getCatalogForRole(req.authUser.roleId);
+    const catalog = await this.catalogService.getCatalogForRole(
+      req.authUser.roleId,
+      req.authUser.allowedCompanyCodes,
+    );
     res.status(200).json(catalog);
   }
 }

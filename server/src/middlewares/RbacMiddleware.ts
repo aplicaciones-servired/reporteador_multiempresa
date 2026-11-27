@@ -51,7 +51,11 @@ export class RbacMiddleware {
           req.authUser.roleId,
           rawEmpresa,
         );
-        if (!company) {
+        if (
+          !company ||
+          (req.authUser.allowedCompanyCodes &&
+            !req.authUser.allowedCompanyCodes.includes(company.code))
+        ) {
           throw new ForbiddenError('Tu perfil no tiene permiso sobre la empresa seleccionada');
         }
         req.authorizedCompany = company;

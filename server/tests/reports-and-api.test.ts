@@ -1134,12 +1134,200 @@ test('ServerApp autentica cookie JWT externa de api_login_v2, aplica RBAC y limp
         ? logoutRes.headers.getSetCookie()
         : [logoutRes.headers.get('set-cookie') ?? ''];
     const joinedSetCookies = setCookies.join('\n');
-    for (const cookieName of ['access_token', 'token', 'jwt', 'auth_token', 'rm_token']) {
+    for (const cookieName of ['AuthTokenGaneCompany', 'access_token', 'token', 'jwt', 'auth_token', 'rm_token']) {
       assert.ok(
         joinedSetCookies.includes(`${cookieName}=`),
         `Logout debe limpiar la cookie ${cookieName}`,
       );
     }
+  } finally {
+    await app.close();
+  }
+});
+
+test('ServerApp autentica cookie AuthTokenGaneCompany de login_unificado con mapeo híbrido de rol y empresa', async () => {
+  const jwtSecret = 'test-jwt-secret-key-at-least-32-chars';
+  const loginSecret = 'external-login-unificado-secret-32ch';
+  const config = EnvironmentConfig.fromEnv({
+    NODE_ENV: 'test',
+    JWT_SECRET: jwtSecret,
+    LOGIN_JWT_SECRET: loginSecret,
+  });
+  const registry = DefaultReportRegistryFactory.create(config);
+  const oraclePools = new MockOraclePoolManager();
+
+  const userRepo: IUserRepository = {
+    async findByLogin() {
+      return null;
+    },
+    async findById() {
+      return null;
+    },
+    async updateLastLogin() {},
+  };
+
+  const companyRepo: ICompanyRepository = {
+    async findByRoleId(roleId) {
+      return roleId === 1 ? TEST_COMPANIES : [];
+    },
+    async findAuthorizedCompany(roleId, code) {
+      const list = roleId === 1 ? TEST_COMPANIES : [];
+      return list.find((c) => c.code === code) ?? null;
+    },
+  };
+
+  const allReportRecords: RoleReportRecord[] = registry.getAllMetadata().map((m, idx) => ({
+    ...m,
+    id: idx + 1,
+    isActive: true,
+  }));
+
+  const reportRepo: IReportRepository = {
+    async findAuthorizedReportsByRoleId(roleId) {
+      return roleId === 1 ? allReportRecords : [];
+    },
+    async isReportAuthorizedForRole(roleId, slug) {
+      return roleId === 1 && allReportRecords.some((r) => r.slug === slug);
+    },
+  };
+
+  const app = new ServerApp({
+    config,
+    oraclePools,
+    reportRegistry: registry,
+    userRepository: userRepo,
+    companyRepository: companyRepo,
+    reportRepository: reportRepo,
+    getAppDbStatus: async () => 'connected',
+  });
+
+  const port = await app.listen(0);
+  const baseUrl = `http://127.0.0.1:${port}/api`;
+
+  try {
+    // 1. Token exacto de login_unificado con ambas empresas y sub_process coordinador_soporte -> ADMIN
+    const dualCompanyToken = jwt.sign(
+      {
+        id: 'fe1b8f02-80f0-4476-9bd6-2ae8f0d59f2e',
+        names: 'Cebastian',
+        lastnames: 'Ponton',
+        document: 1001060235,
+        username: 'CP1001060235',
+        email: 'aplicaciones@gruposervired.com.co',
+        company: 'MultiredYServired',
+        process: 'Financiero',
+        sub_process: 'coordinador_soporte',
+        state: 'Activo',
+      },
+      loginSecret,
+      { algorithm: 'HS256', expiresIn: '1h' },
+    );
+
+    const meRes = await fetch(`${baseUrl}/auth/me`, {
+      headers: { Cookie: `AuthTokenGaneCompany=${dualCompanyToken}` },
+    });
+    assert.equal(meRes.status, 200);
+    const meJson = (await meRes.json()) as {
+      user: {
+        login: string;
+        fullName: string;
+        roleCode: string;
+        companies: CompanyContext[];
+      };
+    };
+    assert.equal(meJson.user.login, 'CP1001060235');
+    assert.equal(meJson.user.fullName, 'Cebastian Ponton');
+    assert.equal(meJson.user.roleCode, 'ADMIN');
+    assert.equal(meJson.user.companies.length, 2);
+
+    const catalogRes = await fetch(`${baseUrl}/catalog`, {
+      headers: { Cookie: `AuthTokenGaneCompany=${dualCompanyToken}` },
+    });
+    assert.equal(catalogRes.status, 200);
+    const catalogJson = (await catalogRes.json()) as {
+      companies: CompanyContext[];
+      totalReports: number;
+    };
+    assert.equal(catalogJson.companies.length, 2);
+    assert.equal(catalogJson.totalReports, 28);
+
+    const previewRes = await fetch(`${baseUrl}/reports/recaudos/preview`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: `AuthTokenGaneCompany=${dualCompanyToken}`,
+      },
+      body: JSON.stringify({ empresa: '39627', fecha1: '2026-11-01', fecha2: '2026-11-10' }),
+    });
+    assert.equal(previewRes.status, 200);
+
+    // 2. Token restringido a una sola empresa (Multired) bloquea acceso a Servired (39628)
+    const multiredOnlyToken = jwt.sign(
+      {
+        id: 'user-2',
+        names: 'Ana',
+        lastnames: 'Gomez',
+        username: 'AG123456',
+        company: 'Multired',
+        process: 'Tecnologia',
+        sub_process: 'soporte',
+        state: 'Activo',
+      },
+      loginSecret,
+      { algorithm: 'HS256', expiresIn: '1h' },
+    );
+
+    const singleCatRes = await fetch(`${baseUrl}/catalog`, {
+      headers: { Cookie: `AuthTokenGaneCompany=${multiredOnlyToken}` },
+    });
+    assert.equal(singleCatRes.status, 200);
+    const singleCatJson = (await singleCatRes.json()) as {
+      companies: CompanyContext[];
+    };
+    assert.equal(singleCatJson.companies.length, 1);
+    assert.equal(singleCatJson.companies[0].code, '39627');
+
+    const forbiddenCompanyRes = await fetch(`${baseUrl}/reports/recaudos/preview`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: `AuthTokenGaneCompany=${multiredOnlyToken}`,
+      },
+      body: JSON.stringify({ empresa: '39628', fecha1: '2026-11-01', fecha2: '2026-11-10' }),
+    });
+    assert.equal(forbiddenCompanyRes.status, 403);
+
+    // 3. Usuario con state: 'Inactivo' es rechazado con 401
+    const inactiveExternalToken = jwt.sign(
+      {
+        id: 'user-3',
+        names: 'Carlos',
+        lastnames: 'Ruiz',
+        username: 'CR999999',
+        company: 'MultiredYServired',
+        process: 'Financiero',
+        sub_process: 'coordinador_soporte',
+        state: 'Inactivo',
+      },
+      loginSecret,
+      { algorithm: 'HS256', expiresIn: '1h' },
+    );
+    const inactiveRes = await fetch(`${baseUrl}/auth/me`, {
+      headers: { Cookie: `AuthTokenGaneCompany=${inactiveExternalToken}` },
+    });
+    assert.equal(inactiveRes.status, 401);
+
+    // 4. Logout limpia AuthTokenGaneCompany
+    const logoutRes = await fetch(`${baseUrl}/auth/logout`, { method: 'POST' });
+    assert.equal(logoutRes.status, 200);
+    const setCookies =
+      typeof logoutRes.headers.getSetCookie === 'function'
+        ? logoutRes.headers.getSetCookie()
+        : [logoutRes.headers.get('set-cookie') ?? ''];
+    assert.ok(
+      setCookies.join('\n').includes('AuthTokenGaneCompany='),
+      'Logout debe limpiar la cookie AuthTokenGaneCompany',
+    );
   } finally {
     await app.close();
   }

@@ -19,7 +19,10 @@ const envSchema = z.object({
     .default('dev-reporteador-multiempresa-jwt-secret-key'),
   JWT_EXPIRES_IN: z.string().min(1).default('8h'),
   LOGIN_JWT_SECRET: z.string().optional().default(''),
-  AUTH_COOKIE_NAMES: z.string().optional().default('access_token,token,jwt,auth_token,rm_token'),
+  AUTH_COOKIE_NAMES: z
+    .string()
+    .optional()
+    .default('AuthTokenGaneCompany,access_token,token,jwt,auth_token,rm_token'),
   COOKIE_SECURE: z
     .enum(['true', 'false'])
     .optional()
@@ -112,7 +115,7 @@ export class EnvironmentConfig {
     this.authCookieNames =
       parsedCookieNames.length > 0
         ? parsedCookieNames
-        : ['access_token', 'token', 'jwt', 'auth_token', 'rm_token'];
+        : ['AuthTokenGaneCompany', 'access_token', 'token', 'jwt', 'auth_token', 'rm_token'];
     this.cookieSecure = parsed.COOKIE_SECURE;
     this.seedDefaultAdminPassword = parsed.SEED_DEFAULT_ADMIN_PASSWORD;
     this.appDbMode = parsed.APP_DB_MODE;

@@ -1,7 +1,11 @@
 import { Router, type Request, type Response } from 'express';
 import { UnauthorizedError } from '../../core/errors/AppError.js';
 import type { AuthMiddleware } from '../../middlewares/AuthMiddleware.js';
-import { AUTH_COOKIE_NAME, DEFAULT_AUTH_COOKIE_NAMES } from '../../middlewares/AuthMiddleware.js';
+import {
+  AUTH_COOKIE_NAME,
+  DEFAULT_AUTH_COOKIE_NAMES,
+  EXTERNAL_AUTH_COOKIE_NAME,
+} from '../../middlewares/AuthMiddleware.js';
 import type { RateLimiterMiddleware } from '../../middlewares/RateLimiterMiddleware.js';
 import { AuthService } from './AuthService.js';
 import { loginSchema } from './auth.schemas.js';
@@ -58,7 +62,8 @@ export class AuthController {
     for (const cookieName of cookieNamesToClear) {
       res.clearCookie(cookieName, {
         httpOnly: true,
-        sameSite: 'lax',
+        sameSite:
+          cookieName === EXTERNAL_AUTH_COOKIE_NAME && this.cookieSecure ? 'none' : 'lax',
         secure: this.cookieSecure,
         path: '/',
       });
@@ -70,7 +75,7 @@ export class AuthController {
     if (!req.authUser) {
       throw new UnauthorizedError();
     }
-    const user = await this.authService.getProfile(req.authUser.userId);
+    const user = await this.authService.getProfileForAuthUser(req.authUser);
     res.status(200).json({ user });
   }
 }

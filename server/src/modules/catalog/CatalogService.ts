@@ -18,11 +18,18 @@ export class CatalogService {
     private readonly reportRepository: IReportRepository,
   ) {}
 
-  public async getCatalogForRole(roleId: number): Promise<UserCatalogResponse> {
-    const [companies, reports] = await Promise.all([
+  public async getCatalogForRole(
+    roleId: number,
+    allowedCompanyCodes?: readonly string[],
+  ): Promise<UserCatalogResponse> {
+    const [rawCompanies, reports] = await Promise.all([
       this.companyRepository.findByRoleId(roleId),
       this.reportRepository.findAuthorizedReportsByRoleId(roleId),
     ]);
+    const allowedSet = allowedCompanyCodes ? new Set(allowedCompanyCodes) : null;
+    const companies = allowedSet
+      ? rawCompanies.filter((company) => allowedSet.has(company.code))
+      : rawCompanies;
 
     const grouped = new Map<string, ReportMetadata[]>();
     for (const report of reports) {

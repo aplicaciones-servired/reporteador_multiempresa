@@ -4,7 +4,9 @@ import type { AuthService } from '../modules/auth/AuthService.js';
 import type { CompanyContext } from '../modules/reports/core/ReportTypes.js';
 
 export const AUTH_COOKIE_NAME = 'rm_token';
+export const EXTERNAL_AUTH_COOKIE_NAME = 'AuthTokenGaneCompany';
 export const DEFAULT_AUTH_COOKIE_NAMES: readonly string[] = [
+  EXTERNAL_AUTH_COOKIE_NAME,
   'access_token',
   'token',
   'jwt',
@@ -17,6 +19,10 @@ export interface AuthenticatedRequestUser {
   readonly login: string;
   readonly roleId: number;
   readonly roleCode: string;
+  readonly fullName?: string;
+  readonly roleName?: string;
+  readonly allowedCompanyCodes?: string[];
+  readonly isExternalIdentity?: boolean;
 }
 
 declare global {
@@ -50,6 +56,14 @@ export class AuthMiddleware {
             login: payload.login,
             roleId: payload.roleId,
             roleCode: payload.roleCode,
+            ...(payload.fullName !== undefined ? { fullName: payload.fullName } : {}),
+            ...(payload.roleName !== undefined ? { roleName: payload.roleName } : {}),
+            ...(payload.allowedCompanyCodes !== undefined
+              ? { allowedCompanyCodes: payload.allowedCompanyCodes }
+              : {}),
+            ...(payload.isExternalIdentity !== undefined
+              ? { isExternalIdentity: payload.isExternalIdentity }
+              : {}),
           };
           next();
           return;
