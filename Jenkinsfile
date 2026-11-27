@@ -40,6 +40,7 @@ pipeline {
     CLIENT_ENV_CREDENTIAL_ID = 'reporteador-client-env-file'
     ORACLE_INSTANTCLIENT_URL = 'https://download.oracle.com/otn_software/linux/instantclient/instantclient-basic-linuxx64.zip'
     ASTRO_TELEMETRY_DISABLED = '1'
+    NODE_IMAGE = 'node:24-bookworm-slim'
   }
 
   stages {
@@ -100,41 +101,57 @@ pipeline {
       parallel {
         stage('Server Dependencies & Audit') {
           steps {
-            dir('server') {
-              sh '''
-                set -eu
-                npm ci
-                set +e
-                npm audit --omit=dev --audit-level=high --json > "${WORKSPACE}/audit-server.json"
-                AUDIT_RC=$?
-                set -e
-                npm audit --omit=dev || true
-                if [ "${FAIL_ON_AUDIT}" = "true" ] && [ "$AUDIT_RC" -ne 0 ]; then
-                  echo "ERROR: npm audit en server detectó vulnerabilidades high/critical (exit $AUDIT_RC)."
-                  exit "$AUDIT_RC"
-                fi
-              '''
-            }
+            sh '''
+              set -eu
+              docker run --rm -i \
+                -u "$(id -u):$(id -g)" \
+                -e HOME=/tmp \
+                -e npm_config_cache=/tmp/.npm \
+                -e FAIL_ON_AUDIT="${FAIL_ON_AUDIT}" \
+                -v "${WORKSPACE}:/workspace" \
+                -w /workspace/server \
+                "${NODE_IMAGE}" sh -s <<'EOF'
+set -eu
+npm ci
+set +e
+npm audit --omit=dev --audit-level=high --json > /workspace/audit-server.json
+AUDIT_RC=$?
+set -e
+npm audit --omit=dev || true
+if [ "${FAIL_ON_AUDIT}" = "true" ] && [ "$AUDIT_RC" -ne 0 ]; then
+  echo "ERROR: npm audit en server detectó vulnerabilidades high/critical (exit $AUDIT_RC)."
+  exit "$AUDIT_RC"
+fi
+EOF
+            '''
           }
         }
 
         stage('Client Dependencies & Audit') {
           steps {
-            dir('client') {
-              sh '''
-                set -eu
-                npm ci
-                set +e
-                npm audit --omit=dev --audit-level=high --json > "${WORKSPACE}/audit-client.json"
-                AUDIT_RC=$?
-                set -e
-                npm audit --omit=dev || true
-                if [ "${FAIL_ON_AUDIT}" = "true" ] && [ "$AUDIT_RC" -ne 0 ]; then
-                  echo "ERROR: npm audit en client detectó vulnerabilidades high/critical (exit $AUDIT_RC)."
-                  exit "$AUDIT_RC"
-                fi
-              '''
-            }
+            sh '''
+              set -eu
+              docker run --rm -i \
+                -u "$(id -u):$(id -g)" \
+                -e HOME=/tmp \
+                -e npm_config_cache=/tmp/.npm \
+                -e FAIL_ON_AUDIT="${FAIL_ON_AUDIT}" \
+                -v "${WORKSPACE}:/workspace" \
+                -w /workspace/client \
+                "${NODE_IMAGE}" sh -s <<'EOF'
+set -eu
+npm ci
+set +e
+npm audit --omit=dev --audit-level=high --json > /workspace/audit-client.json
+AUDIT_RC=$?
+set -e
+npm audit --omit=dev || true
+if [ "${FAIL_ON_AUDIT}" = "true" ] && [ "$AUDIT_RC" -ne 0 ]; then
+  echo "ERROR: npm audit en client detectó vulnerabilidades high/critical (exit $AUDIT_RC)."
+  exit "$AUDIT_RC"
+fi
+EOF
+            '''
           }
         }
       }
@@ -144,14 +161,16 @@ pipeline {
       parallel {
         stage('Server Typecheck, Tests & Build') {
           steps {
-            dir('server') {
-              sh '''
-                set -eu
-                npm run typecheck
-                npm test
-                npm run build
-              '''
-            }
+            sh '''
+              set -eu
+              docker run --rm \
+                -u "$(id -u):$(id -g)" \
+                -e HOME=/tmp \
+                -e npm_config_cache=/tmp/.npm \
+                -v "${WORKSPACE}:/workspace" \
+                -w /workspace/server \
+                "${NODE_IMAGE}" sh -eu -c 'npm run typecheck && npm test && npm run build'
+            '''
           }
         }
 
@@ -160,16 +179,20 @@ pipeline {
             withCredentials([
               file(credentialsId: env.CLIENT_ENV_CREDENTIAL_ID, variable: 'CLIENT_ENV_FILE')
             ]) {
-              dir('client') {
-                sh '''
-                  set -eu
-                  trap 'rm -f .env' EXIT
-                  tr -d '\\r' < "$CLIENT_ENV_FILE" > .env
-                  chmod 600 .env
-                  npm run typecheck
-                  npm run build
-                '''
-              }
+              sh '''
+                set -eu
+                trap 'rm -f client/.env' EXIT
+                tr -d '\\r' < "$CLIENT_ENV_FILE" > client/.env
+                chmod 600 client/.env
+                docker run --rm \
+                  -u "$(id -u):$(id -g)" \
+                  -e HOME=/tmp \
+                  -e npm_config_cache=/tmp/.npm \
+                  -e ASTRO_TELEMETRY_DISABLED=1 \
+                  -v "${WORKSPACE}:/workspace" \
+                  -w /workspace/client \
+                  "${NODE_IMAGE}" sh -eu -c 'npm run typecheck && npm run build'
+              '''
             }
           }
         }
@@ -212,7 +235,10 @@ pipeline {
               -f client/Dockerfile \
               .
 
-            docker run --rm --entrypoint nginx "${WEB_IMAGE_REPO}:${IMAGE_TAG}" -t
+            docker run --rm \
+              --add-host=reporteador-server:127.0.0.1 \
+              --add-host=api_login_v2:127.0.0.1 \
+              --entrypoint nginx "${WEB_IMAGE_REPO}:${IMAGE_TAG}" -t
           '''
         }
       }
