@@ -1,0 +1,12 @@
+.git
+.gitignore
+.dockerignore
+node_modules
+dist
+.astro
+.env
+.env.*
+!.env.example
+audit-*.json
+*.log
+*.tsbuildinfo

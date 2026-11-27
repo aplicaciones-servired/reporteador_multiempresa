@@ -1,0 +1,95 @@
+services:
+  reporteador-server:
+    container_name: reporteador-server
+    image: ${IMAGE_PREFIX:-reporteador-multiempresa}-server:${IMAGE_TAG:-latest}
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        ORACLE_INSTANTCLIENT_URL: ${ORACLE_INSTANTCLIENT_URL:-https://download.oracle.com/otn_software/linux/instantclient/instantclient-basic-linuxx64.zip}
+    env_file:
+      - path: ./.env
+        required: false
+      - path: ./server/.env
+        required: false
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: "4000"
+      TZ: America/Bogota
+      ORACLE_CLIENT_LIB_DIR: /opt/oracle/instantclient
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:8080}
+    expose:
+      - "4000"
+    # Descomentar solo para depuración local directa sin Nginx:
+    # ports:
+    #   - "127.0.0.1:4000:4000"
+    volumes:
+      - server_data:/app/data
+    networks:
+      - red-gane-int
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  reporteador-web:
+    container_name: reporteador-web
+    image: ${IMAGE_PREFIX:-reporteador-multiempresa}-web:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+      args:
+        PUBLIC_API_URL: ${PUBLIC_API_URL:-/api}
+        PUBLIC_LOGIN_API_URL: ${PUBLIC_LOGIN_API_URL:-/apilogin}
+    depends_on:
+      reporteador-server:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+    networks:
+      - red-gane-int
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  server_data:
+
+networks:
+  red-gane-int:
+    external: true

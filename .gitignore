@@ -1,0 +1,92 @@
+# ==========================================================
+# Variables de entorno y secretos (NUNCA subir a Git)
+# ==========================================================
+.env
+.env.*
+*.env
+server/.env
+server/.env.*
+client/.env
+client/.env.*
+!.env.example
+!.env.docker.example
+!server/.env.example
+!client/.env.example
+
+# ==========================================================
+# Proyecto PHP legado con credenciales en texto plano
+# ==========================================================
+reporteador-yumundi/
+
+# ==========================================================
+# Certificados, llaves privadas y bóvedas locales
+# ==========================================================
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+*.jks
+secrets/
+certs/
+
+# ==========================================================
+# Datos en runtime y respaldos de bases de datos
+# ==========================================================
+server/data/
+data/
+*.sqlite
+*.sqlite3
+*.db
+*.sql
+*.dump
+*.bak
+
+# ==========================================================
+# Dependencias, compilados y cachés
+# ==========================================================
+node_modules/
+dist/
+.astro/
+.cache/
+.vite/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+AGENTS.md
+# ==========================================================
+# Binarios / instaladores locales de Oracle Instant Client
+# ==========================================================
+oracle/
+instantclient*/
+*.zip
+*.tar.gz
+*.rpm
+.env.example
+# ==========================================================
+# Reportes generados y auditorías temporales
+# ==========================================================
+*.xlsx
+*.xls
+*.csv
+ADV_*.txt
+audit-*.json
+
+# ==========================================================
+# Logs, sistema operativo e IDEs
+# ==========================================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*~
+.env

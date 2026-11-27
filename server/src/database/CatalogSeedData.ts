@@ -1,0 +1,222 @@
+import type { CompanyContext } from '../modules/reports/core/ReportTypes.js';
+
+export interface RoleSeedSpec {
+  readonly code: string;
+  readonly name: string;
+  readonly companyCodes: string[];
+  readonly reportSlugs: string[] | '*';
+}
+
+export type CompanySeedSpec = Omit<CompanyContext, 'id'> & {
+  readonly isActive: boolean;
+};
+
+export const DEFAULT_COMPANIES: CompanySeedSpec[] = [
+  {
+    code: '39627',
+    name: 'MULTIRED',
+    cityLabel: 'YUMBO',
+    nit: '805014543-9',
+    legalName: 'GRUPO EMPRESARIAL MULTIRED S.A',
+    warehouseCode: '2',
+    sisbetCode: '020',
+    legacyZones: ['1197'],
+    costCenters: [39629, 39630, 39631],
+    daneCodes: [76869, 76377, 76892],
+    registrocajasUnits: [
+      '1198',
+      '1199',
+      '1200',
+      '1201',
+      '1624',
+      '2279',
+      '39629',
+      '39630',
+      '39631',
+    ],
+    excludedChanceGames: [15, 18, 104, 110, 116],
+    requirePositiveCash: true,
+    isActive: true,
+  },
+  {
+    code: '39628',
+    name: 'SERVIRED',
+    cityLabel: 'JAMUNDI',
+    nit: '805003010-8',
+    legalName: 'GRUPO EMPRESARIAL SERVIRED S.A',
+    warehouseCode: '3',
+    sisbetCode: '032',
+    legacyZones: ['2023'],
+    costCenters: [39632],
+    daneCodes: [76364],
+    registrocajasUnits: [
+      '2024',
+      '2025',
+      '2026',
+      '2027',
+      '2028',
+      '2029',
+      '2030',
+      '1078',
+      '2244',
+      '2280',
+      '39632',
+    ],
+    excludedChanceGames: [15, 18, 110, 116],
+    requirePositiveCash: false,
+    isActive: true,
+  },
+];
+
+export const DEFAULT_ROLES: RoleSeedSpec[] = [
+  {
+    code: 'ADMIN',
+    name: 'Administrador General',
+    companyCodes: ['39627', '39628'],
+    reportSlugs: '*',
+  },
+  {
+    code: 'APLICACIONES',
+    name: 'Aplicaciones y Soporte',
+    companyCodes: ['39627', '39628'],
+    reportSlugs: [
+      'rechazados',
+      'astro-sisbet-usuarios',
+      'premios-astro',
+      'colocadores-activos',
+      'premios-pagados',
+      'comisiones',
+      'recaudos',
+      'utilidades-giros',
+      'inventario-raspe-bodega',
+      'inventario-raspe-vendedor',
+      'redencion-boletas',
+      'ventas-lf-colocador',
+      'ventas-raspe-colocador',
+      'rollos-sucursal-bnet',
+      'recaudos-maquinas-ruta',
+      'premios-maquinas-ruta',
+    ],
+  },
+  {
+    code: 'CUMPLIMIENTO',
+    name: 'Cumplimiento',
+    companyCodes: ['39627', '39628'],
+    reportSlugs: ['ganadores-diario', 'colocadores-activos', 'premios-astro'],
+  },
+  {
+    code: 'CONTABILIDAD-MULTIRED',
+    name: 'Contabilidad Multired',
+    companyCodes: ['39627', '39628'],
+    reportSlugs: [
+      'consolidado-generados',
+      'consolidado-pagados',
+      'detalle-premios-generados',
+      'detalle-premios-pagados',
+      'cantidad-generados',
+      'detalle-incentivos-3cf',
+    ],
+  },
+  {
+    code: 'CONTABILIDAD-SERVIRED',
+    name: 'Contabilidad Servired',
+    companyCodes: ['39627', '39628'],
+    reportSlugs: [
+      'consolidado-generados',
+      'consolidado-pagados',
+      'detalle-premios-generados',
+      'detalle-premios-pagados',
+      'cantidad-generados',
+      'detalle-incentivos-3cf',
+      'recaudos-maquinas-ruta',
+      'premios-maquinas-ruta',
+    ],
+  },
+  {
+    code: 'COMERCIAL-MULTIRED',
+    name: 'Comercial Multired',
+    companyCodes: ['39627'],
+    reportSlugs: [
+      'rechazados',
+      'consulta-devoluciones',
+      'plano-devoluciones',
+      'existencia-rollos',
+      'inventario-raspe-bodega',
+      'inventario-raspe-vendedor',
+      'redencion-boletas',
+      'ventas-lf-colocador',
+      'ventas-raspe-colocador',
+    ],
+  },
+  {
+    code: 'COMERCIAL-SERVIRED',
+    name: 'Comercial Servired',
+    companyCodes: ['39628'],
+    reportSlugs: [
+      'rechazados',
+      'consulta-devoluciones',
+      'plano-devoluciones',
+      'colocadores-activos',
+      'existencia-rollos',
+      'inventario-raspe-bodega',
+      'inventario-raspe-vendedor',
+      'redencion-boletas',
+      'ventas-lf-colocador',
+      'ventas-raspe-colocador',
+    ],
+  },
+  {
+    code: 'AUDITORIA',
+    name: 'Auditoría',
+    companyCodes: ['39627', '39628'],
+    reportSlugs: ['colocadores-activos', 'premios-astro'],
+  },
+  {
+    code: 'AUDITORIA-OPERATIVA',
+    name: 'Auditoría Operativa',
+    companyCodes: ['39627', '39628'],
+    reportSlugs: ['rechazados'],
+  },
+  {
+    code: 'AUDITORIA-SERVIRED',
+    name: 'Auditoría Servired',
+    companyCodes: ['39627', '39628'],
+    reportSlugs: [
+      'comisiones',
+      'utilidades-giros',
+      'recaudos-maquinas-ruta',
+      'premios-maquinas-ruta',
+      'premios-astro',
+    ],
+  },
+  {
+    code: 'ADMINISTRACION_MULTIRED',
+    name: 'Administración Multired',
+    companyCodes: ['39627'],
+    reportSlugs: ['existencia-rollos'],
+  },
+  {
+    code: 'ADMINISTRACION_SERVIRED',
+    name: 'Administración Servired',
+    companyCodes: ['39627', '39628'],
+    reportSlugs: ['existencia-rollos', 'rollos-sucursal-bnet'],
+  },
+  {
+    code: 'CONTEO_MULTIRED',
+    name: 'Conteo Multired',
+    companyCodes: ['39627'],
+    reportSlugs: ['premios-pagados', 'recaudos', 'premios-astro'],
+  },
+  {
+    code: 'CONTEO_SERVIRED',
+    name: 'Conteo Servired',
+    companyCodes: ['39628'],
+    reportSlugs: ['premios-pagados', 'recaudos', 'premios-astro'],
+  },
+  {
+    code: 'AUXILIAR OFICINA',
+    name: 'Auxiliar de Oficina',
+    companyCodes: ['39627', '39628'],
+    reportSlugs: ['loteria-virtual-premios'],
+  },
+];
