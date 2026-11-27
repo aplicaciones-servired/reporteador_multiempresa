@@ -1452,9 +1452,9 @@ test('ServerApp /api/admin/permissions restringe acceso y aplica overrides por u
       document: '1001060235',
       email: 'aplicaciones@gruposervired.com.co',
       company: 'MultiredYServired',
-      process: 'Financiero',
-      subProcess: 'coordinador_soporte',
-      position: 'coordinador_soporte',
+      process: '1',
+      subProcess: '14',
+      position: '14',
       state: 'Activo',
       isActive: true,
     },
@@ -1589,11 +1589,13 @@ test('ServerApp /api/admin/permissions restringe acceso y aplica overrides por u
     assert.equal(contAdminRes.status, 403);
 
     // 2. Usuarios de Desarrollo Informático, Director de Tecnología y coordinador_soporte SÍ tienen canManagePermissions: true
+    //    Incluso si login_users contiene IDs numéricos ('1'/'14') en process/subProcess/position que difieren del JWT.
     for (const adminToken of [devToken, dirToken, soporteToken]) {
       const meRes = await fetch(`${baseUrl}/auth/me`, {
         headers: { Cookie: `AuthTokenGaneCompany=${adminToken}` },
       });
       assert.equal(meRes.status, 200);
+      assert.equal(meRes.headers.get('cache-control'), 'no-store');
       const meJson = (await meRes.json()) as {
         user: { canManagePermissions: boolean };
       };

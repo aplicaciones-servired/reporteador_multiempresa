@@ -7,6 +7,7 @@ import {
   FileSpreadsheetIcon,
   FileTextIcon,
   SearchIcon,
+  SlidersIcon,
   TableIcon,
   type IconProps,
 } from './Icons';
@@ -15,6 +16,9 @@ interface SidebarProps {
   readonly modules: CatalogModuleGroup[];
   readonly selectedSlug: string | null;
   readonly mobileOpen: boolean;
+  readonly canManagePermissions?: boolean;
+  readonly activeView?: 'reports' | 'admin';
+  readonly onSelectAdmin?: () => void;
   readonly onCloseMobile: () => void;
   readonly onSelectReport: (report: ReportCatalogItem) => void;
 }
@@ -47,6 +51,9 @@ export default function Sidebar({
   modules,
   selectedSlug,
   mobileOpen,
+  canManagePermissions = false,
+  activeView = 'reports',
+  onSelectAdmin,
   onCloseMobile,
   onSelectReport,
 }: SidebarProps) {
@@ -158,6 +165,44 @@ export default function Sidebar({
       </div>
 
       <nav className="custom-scrollbar-dark flex-1 space-y-3 overflow-y-auto px-3 py-4">
+        {canManagePermissions && onSelectAdmin && (
+          <div className="space-y-1.5 border-b border-white/10 pb-3">
+            <p className="px-2 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
+              Administración
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                onSelectAdmin();
+                onCloseMobile();
+              }}
+              className={`group flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left text-xs transition ${
+                activeView === 'admin'
+                  ? 'bg-gradient-to-r from-[#EC681C] to-[#F97316] font-semibold text-white shadow-md shadow-orange-950/40'
+                  : 'bg-white/[0.04] text-slate-200 ring-1 ring-white/10 hover:bg-white/[0.09] hover:text-white'
+              }`}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <SlidersIcon
+                  className={`h-3.5 w-3.5 shrink-0 ${
+                    activeView === 'admin' ? 'text-white' : 'text-blue-300'
+                  }`}
+                />
+                <span className="truncate">Permisos de Usuarios</span>
+              </span>
+              <span
+                className={`shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-bold tracking-wide ${
+                  activeView === 'admin'
+                    ? 'bg-white/20 text-white ring-1 ring-white/25'
+                    : 'bg-blue-500/20 text-blue-200 ring-1 ring-blue-400/25'
+                }`}
+              >
+                ADMIN
+              </span>
+            </button>
+          </div>
+        )}
+
         {filteredModules.length === 0 && (
           <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] px-3 py-5 text-center">
             <p className="text-xs font-medium text-slate-300">Sin coincidencias</p>
@@ -193,7 +238,7 @@ export default function Sidebar({
               {!isCollapsed && (
                 <ul className="space-y-1">
                   {group.reports.map((report) => {
-                    const isSelected = report.slug === selectedSlug;
+                    const isSelected = activeView !== 'admin' && report.slug === selectedSlug;
                     const meta = OUTPUT_META[report.outputType];
                     const OutputIcon = meta.Icon;
 

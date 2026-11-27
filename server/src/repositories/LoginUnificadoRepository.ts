@@ -251,6 +251,7 @@ export class LoginUnificadoRepository implements ILoginUnificadoRepository {
     ]);
     const subProcess = readFirstText(normalized, [
       'sub_process',
+      'sub_proceso',
       'subproceso',
       'subprocess',
     ]);
@@ -260,6 +261,7 @@ export class LoginUnificadoRepository implements ILoginUnificadoRepository {
         'position',
         'job_title',
         'puesto',
+        'perfil',
         'rol',
         'role',
       ]) || subProcess;

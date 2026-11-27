@@ -303,6 +303,9 @@ export default function DashboardApp() {
         modules={modules}
         selectedSlug={selectedReport?.slug ?? null}
         mobileOpen={mobileMenuOpen}
+        canManagePermissions={Boolean(user.canManagePermissions)}
+        activeView={activeView}
+        onSelectAdmin={() => void handleSelectView('admin')}
         onCloseMobile={() => setMobileMenuOpen(false)}
         onSelectReport={handleSelectReport}
       />

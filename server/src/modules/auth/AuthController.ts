@@ -76,6 +76,7 @@ export class AuthController {
       throw new UnauthorizedError();
     }
     const user = await this.authService.getProfileForAuthUser(req.authUser);
+    res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({ user });
   }
 }

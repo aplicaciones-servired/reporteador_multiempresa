@@ -293,7 +293,8 @@ EOF
             export PUBLIC_API_URL="${PUBLIC_API_URL_VALUE:-/api}"
             export PUBLIC_LOGIN_API_URL="${PUBLIC_LOGIN_API_URL_VALUE:-/apilogin}"
 
-            docker compose up -d --remove-orphans
+            echo "Desplegando imágenes tag=${IMAGE_TAG}..."
+            docker compose up -d --force-recreate --remove-orphans
 
             ATTEMPTS=0
             until docker exec reporteador-web wget -qO- "http://127.0.0.1:8080/healthz" >/dev/null 2>&1 && \

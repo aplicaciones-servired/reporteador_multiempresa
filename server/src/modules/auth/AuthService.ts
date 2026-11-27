@@ -420,22 +420,36 @@ export class AuthService {
       throw new UnauthorizedError('Usuario inactivo en el sistema de autenticación');
     }
 
-    const canManagePermissions = isAdminPortalAuthorized({
-      process:
-        externalRow?.process ||
-        (typeof decoded.process === 'string' ? decoded.process : undefined),
+    const jwtAdminAuthorized = isAdminPortalAuthorized({
+      process: typeof decoded.process === 'string' ? decoded.process : undefined,
       subProcess:
-        externalRow?.subProcess ||
-        (typeof decoded.sub_process === 'string' ? decoded.sub_process : undefined),
+        typeof decoded.sub_process === 'string'
+          ? decoded.sub_process
+          : typeof decoded.subProcess === 'string'
+            ? decoded.subProcess
+            : undefined,
       position:
-        externalRow?.position ||
-        (typeof decoded.position === 'string'
+        typeof decoded.position === 'string'
           ? decoded.position
           : typeof decoded.job_title === 'string'
             ? decoded.job_title
-            : undefined),
+            : typeof decoded.rol === 'string'
+              ? decoded.rol
+              : typeof decoded.role === 'string'
+                ? decoded.role
+                : undefined,
       cargo: typeof decoded.cargo === 'string' ? decoded.cargo : undefined,
     });
+
+    const dbAdminAuthorized = externalRow
+      ? isAdminPortalAuthorized({
+          process: externalRow.process,
+          subProcess: externalRow.subProcess,
+          position: externalRow.position,
+        })
+      : false;
+
+    const canManagePermissions = jwtAdminAuthorized || dbAdminAuthorized;
 
     const user = await this.resolveExternalUser(decoded);
     if (user) {
