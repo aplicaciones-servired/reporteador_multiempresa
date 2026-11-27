@@ -8,3 +8,4 @@ data/
 audit-*.json
 *.log
 *.tsbuildinfo
+.env.example

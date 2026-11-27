@@ -90,3 +90,5 @@ desktop.ini
 *.swp
 *~
 .env
+.env.docker.example
+.env.example
