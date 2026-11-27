@@ -84,7 +84,7 @@ export class AdminPermissionsController {
     if (!req.authUser.canManagePermissions) {
       next(
         new ForbiddenError(
-          'Solo el proceso de Desarrollo Informático o el cargo de Director de Tecnología pueden administrar permisos',
+          'Solo Desarrollo Informático, Director de Tecnología o coordinador_soporte pueden administrar permisos',
         ),
       );
       return;

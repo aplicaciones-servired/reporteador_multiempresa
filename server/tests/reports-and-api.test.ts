@@ -1338,7 +1338,7 @@ test('ServerApp autentica cookie AuthTokenGaneCompany de login_unificado con map
   }
 });
 
-test('isAdminPortalAuthorized restringe el panel Admin a Desarrollo Informático o Director de Tecnología', () => {
+test('isAdminPortalAuthorized restringe el panel Admin a Desarrollo Informático, Director de Tecnología o coordinador_soporte', () => {
   assert.equal(isAdminPortalAuthorized({ process: 'Desarrollo Informático' }), true);
   assert.equal(isAdminPortalAuthorized({ process: 'desarrollo_informatico' }), true);
   assert.equal(
@@ -1351,6 +1351,14 @@ test('isAdminPortalAuthorized restringe el panel Admin a Desarrollo Informático
   );
   assert.equal(
     isAdminPortalAuthorized({ process: 'Financiero', subProcess: 'coordinador_soporte' }),
+    true,
+  );
+  assert.equal(
+    isAdminPortalAuthorized({ process: 'Financiero', position: 'Coordinador de Soporte' }),
+    true,
+  );
+  assert.equal(
+    isAdminPortalAuthorized({ process: 'Financiero', subProcess: 'auxiliar_soporte' }),
     false,
   );
   assert.equal(
@@ -1450,6 +1458,19 @@ test('ServerApp /api/admin/permissions restringe acceso y aplica overrides por u
       state: 'Activo',
       isActive: true,
     },
+    {
+      id: 'u-4',
+      username: 'CONT_AUX',
+      fullName: 'Ana Contabilidad',
+      document: '100200302',
+      email: 'contabilidad@empresa.com',
+      company: 'MultiredYServired',
+      process: 'Contabilidad',
+      subProcess: 'auxiliar_contable',
+      position: 'Auxiliar Contable',
+      state: 'Activo',
+      isActive: true,
+    },
   ];
 
   const loginRepo: ILoginUnificadoRepository = {
@@ -1538,23 +1559,37 @@ test('ServerApp /api/admin/permissions restringe acceso y aplica overrides por u
       { algorithm: 'HS256', expiresIn: '1h' },
     );
 
-    // 1. Usuario Financiero/coordinador_soporte NO ve admin (canManagePermissions: false) -> 403 en /api/admin/permissions
-    const soporteMeRes = await fetch(`${baseUrl}/auth/me`, {
-      headers: { Cookie: `AuthTokenGaneCompany=${soporteToken}` },
+    const contToken = jwt.sign(
+      {
+        username: 'CONT_AUX',
+        names: 'Ana',
+        lastnames: 'Contabilidad',
+        company: 'MultiredYServired',
+        process: 'Contabilidad',
+        sub_process: 'auxiliar_contable',
+        state: 'Activo',
+      },
+      loginSecret,
+      { algorithm: 'HS256', expiresIn: '1h' },
+    );
+
+    // 1. Usuario Contabilidad/auxiliar_contable NO ve admin (canManagePermissions: false) -> 403 en /api/admin/permissions
+    const contMeRes = await fetch(`${baseUrl}/auth/me`, {
+      headers: { Cookie: `AuthTokenGaneCompany=${contToken}` },
     });
-    assert.equal(soporteMeRes.status, 200);
-    const soporteMeJson = (await soporteMeRes.json()) as {
+    assert.equal(contMeRes.status, 200);
+    const contMeJson = (await contMeRes.json()) as {
       user: { canManagePermissions: boolean };
     };
-    assert.equal(soporteMeJson.user.canManagePermissions, false);
+    assert.equal(contMeJson.user.canManagePermissions, false);
 
-    const soporteAdminRes = await fetch(`${baseUrl}/admin/permissions`, {
-      headers: { Cookie: `AuthTokenGaneCompany=${soporteToken}` },
+    const contAdminRes = await fetch(`${baseUrl}/admin/permissions`, {
+      headers: { Cookie: `AuthTokenGaneCompany=${contToken}` },
     });
-    assert.equal(soporteAdminRes.status, 403);
+    assert.equal(contAdminRes.status, 403);
 
-    // 2. Usuario de Desarrollo Informático y Director de Tecnología SÍ tienen canManagePermissions: true
-    for (const adminToken of [devToken, dirToken]) {
+    // 2. Usuarios de Desarrollo Informático, Director de Tecnología y coordinador_soporte SÍ tienen canManagePermissions: true
+    for (const adminToken of [devToken, dirToken, soporteToken]) {
       const meRes = await fetch(`${baseUrl}/auth/me`, {
         headers: { Cookie: `AuthTokenGaneCompany=${adminToken}` },
       });
@@ -1565,6 +1600,11 @@ test('ServerApp /api/admin/permissions restringe acceso y aplica overrides por u
       assert.equal(meJson.user.canManagePermissions, true);
     }
 
+    const soporteAdminRes = await fetch(`${baseUrl}/admin/permissions`, {
+      headers: { Cookie: `AuthTokenGaneCompany=${soporteToken}` },
+    });
+    assert.equal(soporteAdminRes.status, 200);
+
     const listRes = await fetch(`${baseUrl}/admin/permissions`, {
       headers: { Cookie: `AuthTokenGaneCompany=${dirToken}` },
     });
@@ -1573,7 +1613,7 @@ test('ServerApp /api/admin/permissions restringe acceso y aplica overrides por u
       users: Array<{ username: string; isCustomized: boolean }>;
       reports: Array<{ slug: string }>;
     };
-    assert.equal(listJson.users.length, 3);
+    assert.equal(listJson.users.length, 4);
     assert.equal(listJson.reports.length, 28);
 
     // 3. Asignar override de reportes y empresa a CP1001060235

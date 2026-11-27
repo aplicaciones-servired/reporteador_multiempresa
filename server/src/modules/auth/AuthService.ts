@@ -109,7 +109,10 @@ export function isAdminPortalAuthorized(claims: {
     .map(normalizePhrase);
   return roleCandidates.some(
     (text) =>
-      text.includes('DIRECTOR DE TECNOLOGIA') || text.includes('DIRECTOR TECNOLOGIA'),
+      text.includes('DIRECTOR DE TECNOLOGIA') ||
+      text.includes('DIRECTOR TECNOLOGIA') ||
+      text.includes('COORDINADOR SOPORTE') ||
+      text.includes('COORDINADOR DE SOPORTE'),
   );
 }
 

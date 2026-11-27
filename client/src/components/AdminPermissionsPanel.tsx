@@ -348,7 +348,7 @@ export default function AdminPermissionsPanel({
               </div>
               <p className="mt-1 text-sm text-slate-500">
                 Configura qué reportes y empresas puede ver cada usuario. Solo visible para
-                Desarrollo Informático y Director de Tecnología.
+                Desarrollo Informático, Director de Tecnología y coordinador_soporte.
               </p>
             </div>
           </div>
